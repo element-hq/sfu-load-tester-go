@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -35,7 +36,7 @@ var preRegisteredBots = []string{
 func main() {
 	callURL := flag.String("call-url", "", "The full URL to the Element Call.")
 	numBots := flag.Int("num-bots", 0, "The number of bots to spawn.")
-	headless := flag.Bool("headless", true, "Whether to run the browser in headless mode.")
+	headless := flag.Bool("headless", false, "Whether to run the browser in headless mode.")
 
 	flag.Parse()
 
@@ -61,9 +62,9 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	// Spawns the bots. The bots will run until the context is cancelled.
+	// Spawns the bots. The bots will run until `ctx` is cancelled or the `close()` is called.
 	botBrowser.spawnBots(*callURL, preRegisteredBots[:*numBots], ctx)
 
-	// Wait for the Ctrl+C.
 	<-ctx.Done()
+	fmt.Println("Shutting down bots...")
 }
