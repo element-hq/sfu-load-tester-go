@@ -39,12 +39,9 @@ func main() {
 
 	flag.Parse()
 
-	if *callURL == "" {
-		log.Fatal("The call URL is empty.")
-	}
-
-	if *numBots == 0 {
-		log.Fatal("The number of bots is 0.")
+	if *callURL == "" || *numBots == 0 {
+		flag.Usage()
+		os.Exit(1)
 	}
 
 	if *numBots > len(preRegisteredBots) {
