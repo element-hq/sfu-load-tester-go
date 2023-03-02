@@ -9,7 +9,8 @@ import (
 )
 
 type chromium struct {
-	browser playwright.Browser
+	pw      *playwright.Playwright
+	options playwright.BrowserTypeLaunchPersistentContextOptions
 }
 
 func newChromium(headless bool) (*chromium, error) {
@@ -18,7 +19,7 @@ func newChromium(headless bool) (*chromium, error) {
 		return nil, fmt.Errorf("could not run playwright: %v", err)
 	}
 
-	launchOptions := playwright.BrowserTypeLaunchOptions{
+	options := playwright.BrowserTypeLaunchPersistentContextOptions{
 		Headless: playwright.Bool(headless),
 		Args: []string{
 			"--no-sandbox",
@@ -32,22 +33,11 @@ func newChromium(headless bool) (*chromium, error) {
 		},
 	}
 
-	browser, err := pw.Chromium.Launch(launchOptions)
-	if err != nil {
-		return nil, fmt.Errorf("could not launch browser: %v", err)
-	}
-
-	return &chromium{browser}, nil
+	return &chromium{pw, options}, nil
 }
 
-// Spawns the bots until the stop signal is received.
-// Uses the array of supplied bots as the bots to run.
+// Spawns the bots. Uses the array of supplied bots as the bots to run.
 func (c *chromium) spawnBots(callURL string, bots []string, ctx context.Context) {
-	go func() {
-		<-ctx.Done()
-		c.browser.Close()
-	}()
-
 	for _, bot := range bots {
 		fmt.Println("Spawning bot:", bot)
 		_, err := c.spawnBot(callURL, bot)
@@ -71,7 +61,9 @@ func (c *chromium) spawnBots(callURL string, bots []string, ctx context.Context)
 }
 
 func (c *chromium) spawnBot(callURL string, bot string) (playwright.Page, error) {
-	context, err := c.browser.NewContext()
+	// We use a persistent context, so that only the first launch of the tool is long.
+	// Subsequent launches will be fast. We "cache" the context.
+	context, err := c.pw.Chromium.LaunchPersistentContext(bot, c.options)
 	if err != nil {
 		return nil, fmt.Errorf("could not create context: %v", err)
 	}
@@ -94,6 +86,13 @@ func (c *chromium) spawnBot(callURL string, bot string) (playwright.Page, error)
 		return returnError(err, "could not go to call URL")
 	}
 
+	// We're using persistent context, so it could be that we already logged in if the
+	// tool has been started before, so we spare time by just immediately logging in!
+	if err := page.Click("text=Join call now"); err == nil {
+		return page, nil
+	}
+
+	// Otherwise, we need to log-in and then join the call.
 	if err := page.Click("text='Log in'"); err != nil {
 		return returnError(err, "could not click login button")
 	}
@@ -118,7 +117,7 @@ func (c *chromium) spawnBot(callURL string, bot string) (playwright.Page, error)
 }
 
 func (c *chromium) close() error {
-	if err := c.browser.Close(); err != nil {
+	if err := c.pw.Stop(); err != nil {
 		return fmt.Errorf("could not close browser: %v", err)
 	}
 
