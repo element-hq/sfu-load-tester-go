@@ -35,6 +35,7 @@ var preRegisteredBots = []string{
 func main() {
 	callURL := flag.String("call-url", "", "The full URL to the Element Call.")
 	numBots := flag.Int("num-bots", 0, "The number of bots to spawn.")
+	headless := flag.Bool("headless", true, "Whether to run the browser in headless mode.")
 
 	flag.Parse()
 
@@ -51,7 +52,7 @@ func main() {
 	}
 
 	// Creates a new chromium instance.
-	botBrowser, err := newChromium()
+	botBrowser, err := newChromium(*headless)
 	if err != nil {
 		log.Fatalf("could not create chrome bot: %v", err)
 	}

@@ -12,14 +12,14 @@ type chromium struct {
 	browser playwright.Browser
 }
 
-func newChromium() (*chromium, error) {
+func newChromium(headless bool) (*chromium, error) {
 	pw, err := playwright.Run()
 	if err != nil {
 		return nil, fmt.Errorf("could not run playwright: %v", err)
 	}
 
 	launchOptions := playwright.BrowserTypeLaunchOptions{
-		Headless: playwright.Bool(false),
+		Headless: playwright.Bool(headless),
 		Args: []string{
 			"--no-sandbox",
 			"--use-fake-ui-for-media-stream",
