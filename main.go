@@ -1,19 +1,36 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"os/signal"
-	"syscall"
 )
 
-// TODO: Read from cmd parameters.
+// TODO: Parse these parameters.
 var (
-	config = callConfig{
-		callURL: "https://pr805--element-call.netlify.app/",
-		room:    "dcall",
+	botUsers = []string{
+		"gobotuser1",
+		"gobotuser2",
+		"gobotuser3",
+		"gobotuser4",
+		"gobotuser5",
+		"gobotuser6",
+		"gobotuser7",
+		"gobotuser8",
+		"gobotuser9",
+		"gobotuser10",
+		"gobotuser11",
+		"gobotuser12",
+		"gobotuser13",
+		"gobotuser14",
+		"gobotuser15",
+		"gobotuser16",
+		"gobotuser18",
+		"gobotuser19",
+		"gobotuser20",
 	}
-	numberBots = 10
+	callURL = "https://pr805--element-call.netlify.app/room/#dcall1:call.ems.host"
 )
 
 func main() {
@@ -26,17 +43,12 @@ func main() {
 	// Close the browser when the app is done.
 	defer botBrowser.close()
 
-	// Handle SIGTERM in terminal, so that once we're done, we stop the bots.
-	signalStop := make(chan struct{})
-	signalChannel := make(chan os.Signal, 1)
-	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-signalChannel
-		close(signalStop)
-	}()
+	// Creates a context that will be used to cancel the bots.
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
 
-	// Run the bots until the stop signal is received.
-	if err := botBrowser.run(config, numberBots, signalStop); err != nil {
+	// Runs the bots until the context is closed.
+	if err := botBrowser.runBots(callURL, botUsers, ctx); err != nil {
 		log.Fatalf("could not spawn bots: %v", err)
 	}
 }

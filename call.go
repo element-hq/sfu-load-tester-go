@@ -1,15 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"github.com/playwright-community/playwright-go"
 )
-
-type callConfig struct {
-	callURL string
-	room    string
-}
 
 type chromium struct {
 	browser playwright.Browser
@@ -21,7 +18,7 @@ func newChromium() (*chromium, error) {
 		return nil, fmt.Errorf("could not run playwright: %v", err)
 	}
 
-	options := playwright.BrowserTypeLaunchOptions{
+	launchOptions := playwright.BrowserTypeLaunchOptions{
 		Headless: playwright.Bool(true),
 		Args: []string{
 			"--no-sandbox",
@@ -35,7 +32,7 @@ func newChromium() (*chromium, error) {
 		},
 	}
 
-	browser, err := pw.Chromium.Launch(options)
+	browser, err := pw.Chromium.Launch(launchOptions)
 	if err != nil {
 		return nil, fmt.Errorf("could not launch browser: %v", err)
 	}
@@ -43,29 +40,39 @@ func newChromium() (*chromium, error) {
 	return &chromium{browser}, nil
 }
 
-func (c *chromium) run(config callConfig, numberBots int, stopSignal <-chan struct{}) error {
-	pages := make([]playwright.Page, numberBots)
-	for i := 0; i < numberBots; i++ {
-		page, err := c.spawnBot(config, i)
+// Runs the bots until the stop signal is received.
+// Uses the array of supplied bots as the bots to run.
+func (c *chromium) runBots(callURL string, bots []string, ctx context.Context) error {
+	pages := make([]playwright.Page, len(bots))
+
+	go func() {
+		<-ctx.Done()
+		c.browser.Close()
+	}()
+
+	for i, bot := range bots {
+		page, err := c.spawnBot(callURL, bot)
 		if err != nil {
 			return fmt.Errorf("could not spawn bot: %v", err)
 		}
 
 		pages[i] = page
+		defer page.Close()
+
+		// Sleep to bypass the rate-limiting.
+		select {
+		case <-time.After(3 * time.Second):
+		case <-ctx.Done():
+		}
 	}
 
 	// Wait for the stop signal.
-	<-stopSignal
-	for _, page := range pages {
-		if err := page.Close(); err != nil {
-			return err
-		}
-	}
+	<-ctx.Done()
 
 	return nil
 }
 
-func (c *chromium) spawnBot(config callConfig, index int) (playwright.Page, error) {
+func (c *chromium) spawnBot(callURL string, bot string) (playwright.Page, error) {
 	context, err := c.browser.NewContext()
 	if err != nil {
 		return nil, fmt.Errorf("could not create context: %v", err)
@@ -76,29 +83,28 @@ func (c *chromium) spawnBot(config callConfig, index int) (playwright.Page, erro
 		return nil, fmt.Errorf("could not create page: %v", err)
 	}
 
-	if _, err := page.Goto(config.callURL); err != nil {
+	if _, err := page.Goto(callURL); err != nil {
 		return nil, fmt.Errorf("could not goto page: %v", err)
 	}
 
-	if err := page.Type("input#callName", config.room); err != nil {
-		return nil, fmt.Errorf("could not type room: %v", err)
+	if err := page.Click("text='Log in'"); err != nil {
+		return nil, fmt.Errorf("could not click login: %v", err)
 	}
 
-	if err := page.Type("input#displayName", fmt.Sprintf("bot_%d", index)); err != nil {
-		return nil, fmt.Errorf("could not type user: %v", err)
+	if err := page.Fill("[placeholder='Username']", bot); err != nil {
+		return nil, fmt.Errorf("could not fill username: %v", err)
 	}
 
-	if err := page.Press("input#displayName", "Enter"); err != nil {
+	if err := page.Fill("input[placeholder=Password]", bot); err != nil {
+		return nil, fmt.Errorf("could not fill password: %v", err)
+	}
+
+	if err := page.Click("text=Login"); err != nil {
+		return nil, fmt.Errorf("could not click login: %v", err)
+	}
+
+	if err := page.Click("text='Join call now'"); err != nil {
 		return nil, fmt.Errorf("could not press enter: %v", err)
-	}
-
-	if _, err := page.WaitForNavigation(); err != nil {
-		return nil, fmt.Errorf("could not wait for navigation: %v", err)
-	}
-
-	// Find the button that has a text of "Join call now" and press it.
-	if err := page.Click("text=Join call now"); err != nil {
-		return nil, fmt.Errorf("could not click join call now: %v", err)
 	}
 
 	return page, nil
