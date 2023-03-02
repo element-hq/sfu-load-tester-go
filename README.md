@@ -1,9 +1,17 @@
 # Element Call Bots
 
-Emulates users joining the given Element Call URL.
+Quick and dirty tool that emulates users joining the given Element Call URL by using the playwright-go framework for the end-to-end testing.
 
-The only things that you need to specify are:
+Use `--help` flag to understand the usage.
 
-1. Element Call URL.
-2. The list of pre-registered bot accounts (the tool assumes that password matches username).
+Currently, the tool works by assuming that there is a list of pre-registered
+bot users (hardcoded at the moment). Alternatively, we could register the users
+on the fly (initial version of this tool did so), but both things are subject
+to rate limitting and it seems like registering users on the fly requires much
+more time to really spawn bots.
 
+There is a limit of max. 20 bots at the moment. It's unlikely that a regular user machine would be able to spawn more though.
+
+This is in no way a tool that is ready for production usage.
+
+Press `CTRL+C` to stop the tool after running.
