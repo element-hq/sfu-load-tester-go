@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/playwright-community/playwright-go"
@@ -41,48 +40,34 @@ func newChromium() (*chromium, error) {
 	return &chromium{browser}, nil
 }
 
-// Runs the bots until the stop signal is received.
+// Spawns the bots until the stop signal is received.
 // Uses the array of supplied bots as the bots to run.
-func (c *chromium) runBots(callURL string, bots []string, ctx context.Context) error {
+func (c *chromium) spawnBots(callURL string, bots []string, ctx context.Context) {
 	go func() {
 		<-ctx.Done()
-		for _, browserCtx := range c.browser.Contexts() {
-			browserCtx.Close()
-		}
 		c.browser.Close()
 	}()
 
 	for _, bot := range bots {
-		page, err := c.spawnBot(callURL, bot)
+		fmt.Println("Spawning bot:", bot)
+		_, err := c.spawnBot(callURL, bot)
 
-		if err != nil {
-			if !strings.Contains(err.Error(), "Timeout") {
-				return err
-			}
+		// Retry until success.
+		for err != nil {
+			fmt.Println("Bot failed to spawn:", bot, err)
 
-			// It's likely a rate-limitting issue, so we'll just wait a bit and try again.
-			fmt.Printf("Hitting rate-limit, waiting to bypass the rate-limitter...:\n")
-
+			// Wait 3 seconds before trying again.
 			select {
 			case <-ctx.Done():
+				return
 			case <-time.After(3 * time.Second):
 			}
 
-			// Try again, if we failed again, then it's not rate-limitting, but something else.
-			page, err = c.spawnBot(callURL, bot)
-			if err != nil {
-				return err
-			}
+			_, err = c.spawnBot(callURL, bot)
 		}
 
-		fmt.Printf("Bot %s spawned\n", bot)
-		defer page.Close()
+		fmt.Println("Bot spawned:", bot)
 	}
-
-	// Wait for the stop signal.
-	<-ctx.Done()
-
-	return nil
 }
 
 func (c *chromium) spawnBot(callURL string, bot string) (playwright.Page, error) {

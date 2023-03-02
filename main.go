@@ -2,38 +2,54 @@ package main
 
 import (
 	"context"
+	"flag"
 	"log"
 	"os"
 	"os/signal"
 )
 
-// TODO: Parse these parameters.
-var (
-	botUsers = []string{
-		"gobotuser1",
-		"gobotuser2",
-		"gobotuser3",
-		"gobotuser4",
-		"gobotuser5",
-		"gobotuser6",
-		"gobotuser7",
-		"gobotuser8",
-		"gobotuser9",
-		"gobotuser10",
-		"gobotuser11",
-		"gobotuser12",
-		"gobotuser13",
-		"gobotuser14",
-		"gobotuser15",
-		"gobotuser16",
-		"gobotuser18",
-		"gobotuser19",
-		"gobotuser20",
-	}
-	callURL = "https://pr805--element-call.netlify.app/room/#dcall1:call.ems.host"
-)
+// TODO: Make them as parameters. Or register them dynamically.
+var preRegisteredBots = []string{
+	"gobotuser1",
+	"gobotuser2",
+	"gobotuser3",
+	"gobotuser4",
+	"gobotuser5",
+	"gobotuser6",
+	"gobotuser7",
+	"gobotuser8",
+	"gobotuser9",
+	"gobotuser10",
+	"gobotuser11",
+	"gobotuser12",
+	"gobotuser13",
+	"gobotuser14",
+	"gobotuser15",
+	"gobotuser16",
+	"gobotuser17",
+	"gobotuser18",
+	"gobotuser19",
+	"gobotuser20",
+}
 
 func main() {
+	callURL := flag.String("call-url", "", "The full URL to the Element Call.")
+	numBots := flag.Int("num-bots", 0, "The number of bots to spawn.")
+
+	flag.Parse()
+
+	if *callURL == "" {
+		log.Fatal("The call URL is empty.")
+	}
+
+	if *numBots == 0 {
+		log.Fatal("The number of bots is 0.")
+	}
+
+	if *numBots > len(preRegisteredBots) {
+		log.Fatal("The number of bots is greater than the number of pre-registered bots.")
+	}
+
 	// Creates a new chromium instance.
 	botBrowser, err := newChromium()
 	if err != nil {
@@ -47,8 +63,9 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	// Runs the bots until the context is closed.
-	if err := botBrowser.runBots(callURL, botUsers, ctx); err != nil {
-		log.Fatalf("could not spawn bots: %v", err)
-	}
+	// Spawns the bots. The bots will run until the context is cancelled.
+	botBrowser.spawnBots(*callURL, preRegisteredBots[:*numBots], ctx)
+
+	// Wait for the Ctrl+C.
+	<-ctx.Done()
 }
