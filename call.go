@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/playwright-community/playwright-go"
@@ -61,6 +62,15 @@ func (c *chromium) spawnBots(callURL string, bots []string, ctx context.Context)
 }
 
 func (c *chromium) spawnBot(callURL string, bot string) (playwright.Page, error) {
+	// Check if the persistent context folder (cache) exists already.
+	// If it does, we can skip the log-in procedure. This checks if the `bot` folder
+	// exists.
+	skipLogin := false
+	if _, err := os.Stat(bot); err == nil {
+		// The folder exists, so we can skip the log-in procedure.
+		skipLogin = true
+	}
+
 	// We use a persistent context, so that only the first launch of the tool is long.
 	// Subsequent launches will be fast. We "cache" the context.
 	context, err := c.pw.Chromium.LaunchPersistentContext(bot, c.options)
@@ -86,9 +96,11 @@ func (c *chromium) spawnBot(callURL string, bot string) (playwright.Page, error)
 		return returnError(err, "could not go to call URL")
 	}
 
-	// We're using persistent context, so it could be that we already logged in if the
-	// tool has been started before, so we spare time by just immediately logging in!
-	if err := page.Click("text=Join call now"); err == nil {
+	if skipLogin {
+		if err := page.Click("text=Join call now"); err != nil {
+			return returnError(err, "could not click join call button")
+		}
+
 		return page, nil
 	}
 
